@@ -4,6 +4,9 @@ import math
 import os
 import time
 import toml
+import shutil # Keep for other potential uses if needed
+import zipfile # Keep for other potential uses if needed
+import re # Keep for other potential uses if needed
 
 from datetime import datetime
 from .common_gui import (
@@ -37,7 +40,7 @@ from .class_folders import Folders
 from .class_command_executor import CommandExecutor
 from .class_tensorboard import TensorboardManager
 from .class_sample_images import SampleImages, create_prompt_file
-from .class_lora_tab import LoRATools # This import might be redundant if LoRATools is only used in kohya_gui.py now
+# from .class_lora_tab import LoRATools # This import might be redundant if LoRATools is only used in kohya_gui.py now
 from .class_huggingface import HuggingFace
 from .class_metadata import MetaData
 from .class_gui_config import KohyaSSGUIConfig
@@ -47,6 +50,9 @@ from .dreambooth_folder_creation_gui import (
     gradio_dreambooth_folder_creation_tab,
 )
 from .dataset_balancing_gui import gradio_dataset_balancing_tab
+
+# Import the new wizard class
+from .lora_wizard_gui import LoraTrainingWizard
 
 from .custom_logging import setup_logging
 
@@ -74,6 +80,9 @@ LYCORIS_PRESETS_CHOICES = [
     "unet-transformer-only",
     "unet-convblock-only",
 ]
+
+# Define image extensions constant (can be removed if only used in wizard)
+# IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
 
 
 def save_configuration(
@@ -1450,6 +1459,7 @@ def train_model(
     # Flag to train unet only if its learning rate is non-zero and text encoder's is zero.
     network_train_unet_only = text_encoder_lr_float == 0 and unet_lr_float != 0
 
+    do_not_set_learning_rate = False
     if text_encoder_lr_float != 0 or unet_lr_float != 0:
         do_not_set_learning_rate = True
 
@@ -1771,21 +1781,9 @@ def train_model(
             gr.Textbox(value=train_state_value),
         )
 
-# --- Wizard Functions ---
-# Placeholder for moving to step 2
-def go_to_step2(lora_type, lora_name):
-    log.info(f"Wizard Step 1 Data: Type={lora_type}, Name={lora_name}")
-    # In a real scenario, you would hide step 1 and show step 2 here
-    # For now, just hide step 1 to demonstrate the flow
-    return gr.update(visible=False)
 
-# Function to show/hide UI elements when starting/canceling the wizard
-def start_wizard():
-    return gr.update(visible=False), gr.update(visible=False), gr.update(visible=True)
-
-def cancel_wizard():
-    return gr.update(visible=True), gr.update(visible=True), gr.update(visible=False)
-# --- End Wizard Functions ---
+# Removed Wizard Functions (now in lora_wizard_gui.py)
+# Removed process_uploaded_files (now in lora_wizard_gui.py)
 
 def lora_tab(
     headless=False,
@@ -1832,6 +1830,7 @@ def lora_tab(
                 )
 
                 with gr.Accordion("Folders", open=True), gr.Group():
+                    # Define folders object HERE so it's accessible later
                     folders = Folders(headless=headless, config=config)
 
             with gr.Accordion("Metadata", open=False), gr.Group():
@@ -2589,8 +2588,9 @@ def lora_tab(
                                 results = []
                                 for attr, settings in lora_settings_config.items():
                                     update_params = settings["update_params"]
-
-                                    results.append(settings["gr_type"])
+                                    # --- FIX HERE ---
+                                    results.append(gr.update(**update_params))
+                                    # --- END FIX ---
 
                                 return tuple(results)
 
@@ -2723,27 +2723,37 @@ def lora_tab(
 
         # --- END OF MANUAL CONFIGURATION ACCORDION ---
 
-        # --- START OF WIZARD UI ---
-        with gr.Column(visible=False) as wizard_step1_ui:
-            gr.Markdown("## LoRA Training Wizard - Step 1: Basics")
-            gr.Markdown("Let's start by defining what you want to train.")
+        # --- START OF WIZARD UI PLACEHOLDER ---
+        # ... (Instantiate wizard) ...
+        lora_wizard = LoraTrainingWizard(
+            wizard_button=lora_wizard_button,
+            manual_accordion=manual_training_accordion,
+            output_dir_component=folders.output_dir,
+            headless=headless,
+        )
 
-            wizard_lora_type = gr.Radio(
-                ["Character", "Style", "Concept"],
-                label="What type of LoRA are you training?",
-                value="Character" # Default value
-            )
+        # Get the UI components from the wizard instance
+        wizard_step1_ui, wizard_step2_ui, wizard_step3_ui = lora_wizard.get_ui_components()
+        # Get the state components
+        # --- MODIFIED LINE BELOW ---
+        (
+            wizard_state_type,
+            wizard_state_name,
+            wizard_state_dataset_base_dir,
+            wizard_state_found_datasets_map,
+            wizard_state_step3_images_per_page, # New
+            wizard_state_step3_current_page,    # New
+            wizard_state_step3_total_pages,     # New
+            wizard_state_step3_image_files,     # New
+            wizard_state_step3_image_dir,       # New
+            wizard_state_step3_caption_extension, # New
+            wizard_state_step3_trigger_update,  # New
+        ) = lora_wizard.get_state_components()
+        # --- END MODIFICATION ---
 
-            wizard_lora_training_name = gr.Textbox(
-                label="LoRA Training Name",
-                placeholder="e.g., my_character_lora_v1",
-                interactive=True
-            )
-
-            with gr.Row():
-                wizard_cancel_button_step1 = gr.Button("Cancel")
-                wizard_next_button_step1 = gr.Button("Next", variant="primary")
-        # --- END OF WIZARD UI ---
+        # The UI is defined within the wizard class, so no 'with' blocks here.
+        # The variables wizard_step1_ui and wizard_step2_ui now hold the Gradio Column objects.
+        # --- END OF WIZARD UI PLACEHOLDER ---
 
         # --- Event Handlers ---
         settings_list = [
@@ -2980,6 +2990,7 @@ def lora_tab(
         ]
 
         # --- Event Handlers for Manual Training ---
+        # ... (Keep existing manual training event handlers) ...
         configuration.button_open_config.click(
             open_configuration,
             inputs=[dummy_db_true, dummy_db_false, configuration.config_file_name]
@@ -3047,36 +3058,30 @@ def lora_tab(
         # --- End Event Handlers for Manual Training ---
 
         # --- Event Handlers for Wizard ---
+        # Connect the main wizard button to the start method of the wizard instance
         lora_wizard_button.click(
-            fn=start_wizard,
+            fn=lora_wizard.start,
             inputs=None,
-            outputs=[lora_wizard_button, manual_training_accordion, wizard_step1_ui]
-        )
-
-        wizard_cancel_button_step1.click(
-            fn=cancel_wizard,
-            inputs=None,
-            outputs=[lora_wizard_button, manual_training_accordion, wizard_step1_ui]
-        )
-
-        wizard_next_button_step1.click(
-            fn=go_to_step2, # Placeholder function
-            inputs=[wizard_lora_type, wizard_lora_training_name],
-            outputs=[wizard_step1_ui] # Example: Hide step 1 on next
+            # --- MODIFIED LINE BELOW ---
+            outputs=[
+                lora_wizard_button,
+                manual_training_accordion,
+                wizard_step1_ui,
+                wizard_step2_ui,
+                wizard_step3_ui,
+                wizard_state_dataset_base_dir,
+                wizard_state_found_datasets_map,
+                wizard_state_step3_images_per_page, # New
+                wizard_state_step3_current_page,    # New
+                wizard_state_step3_total_pages,     # New
+                wizard_state_step3_image_files,     # New
+                wizard_state_step3_image_dir,       # New
+                wizard_state_step3_caption_extension, # New
+                wizard_state_step3_trigger_update,  # New
+            ]
+            # --- END MODIFICATION ---
         )
         # --- End Event Handlers for Wizard ---
-
-    # The 'Guides' tab remains outside the main training column
-    with gr.Tab("Guides"):
-        gr.Markdown("This section provide Various LoRA guides and information...")
-        if os.path.exists(rf"{scriptdir}/docs/LoRA/top_level.md"):
-            with open(
-                os.path.join(rf"{scriptdir}/docs/LoRA/top_level.md"),
-                "r",
-                encoding="utf-8",
-            ) as file:
-                guides_top_level = file.read() + "\n"
-            gr.Markdown(guides_top_level)
 
     # Return the necessary folder outputs for other tabs if needed
     return (
@@ -3085,3 +3090,4 @@ def lora_tab(
         folders.output_dir,
         folders.logging_dir,
     )
+

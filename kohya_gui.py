@@ -34,6 +34,31 @@ def initialize_ui_interface(config, headless, use_shell, release_info, readme_co
     # Optional: Changed title to reflect focus
     ui_interface = gr.Blocks(css=css, title=f"Kohya_ss GUI {release_info} - LoRA Focused", theme=gr.themes.Default())
     with ui_interface:
+        # --- Add this block inside your main gr.Blocks() ---
+        gr.HTML("""
+        <style>
+            /* Target the specific rows in the LoRA wizard image grid */
+            .lora-wizard-image-row {
+                display: flex !important; /* Ensure flex display */
+                justify-content: flex-start !important; /* Align columns to the left */
+                align-items: flex-start; /* Align items at the start vertically */
+                flex-wrap: wrap; /* Allow wrapping if needed, though unlikely with fixed cols */
+                gap: 10px; /* Spacing between columns */
+            }
+            /* Target the direct column children */
+            .lora-wizard-image-row > .gradio-column {
+                flex-grow: 0 !important; /* Prevent columns from growing */
+                flex-shrink: 0 !important; /* Prevent columns from shrinking (optional but can help consistency) */
+                /* Explicitly remove auto margins that might cause centering */
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                /* Let Gradio's scale handle the base width, but ensure it doesn't override alignment */
+                max-width: fit-content; /* Adjust max-width based on content */
+            }
+        </style>
+        """)
+        # --- End of added block ---
+
         # --- HIDE Dreambooth Tab ---
         # with gr.Tab("Dreambooth"):
         #     (
@@ -100,7 +125,10 @@ def initialize_ui_interface(config, headless, use_shell, release_info, readme_co
 def UI(**kwargs):
     # Add custom JavaScript if specified
     add_javascript(kwargs.get("language"))
+    # Setup logging (assuming setup_logging is correctly defined elsewhere)
+    log = setup_logging(debug=kwargs.get("debug", False))
     log.info(f"headless: {kwargs.get('headless', False)}")
+
 
     # Load release and README information
     release_info = read_file_content("./.release")

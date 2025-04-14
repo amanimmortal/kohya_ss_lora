@@ -25,9 +25,13 @@ refresh_symbol = "\U0001f504"  # 🔄
 save_style_symbol = "\U0001f4be"  # 💾
 document_symbol = "\U0001F4C4"  # 📄
 
+# Add this line:
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
+
 scriptdir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 if os.name == "nt":
+    # Corrected Problem 1: Use double backslash
     scriptdir = scriptdir.replace("\\", "/")
 
 # insert sd-scripts path into PYTHONPATH
@@ -259,6 +263,7 @@ def list_dirs(path):
     else:
         dirs = [path] + subdirs
 
+    # Corrected Problem 2: Use double backslash
     if os.sep == "\\":
         dirs = [d.replace("\\", "/") for d in dirs]
     for d in dirs:
@@ -300,6 +305,7 @@ def list_files(path, exts=None, all=False):
     else:
         files = [path] + files
 
+    # Corrected Problem 3: Use double backslash
     if os.sep == "\\":
         files = [d.replace("\\", "/") for d in files]
 
